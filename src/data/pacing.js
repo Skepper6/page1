@@ -1,5 +1,5 @@
 // The film supplies visual states, not the speed of the reading experience.
-// Each weight is a viewport of scrolling. Repeated times create a reading hold.
+// Each weight is a viewport of scrolling. Zero-motion holds are excluded.
 export const pacing = [
  [0,0,.35], [0,1.15,1.8], [1.15,1.15,1.4],
  [1.15,2.7,1.9], [2.7,2.7,.12],
@@ -11,27 +11,20 @@ export const pacing = [
  [7.35,8.06,1.7], [8.06,8.43,1.25], [8.43,8.43,1.6],
  [8.43,9.13,1.65], [9.13,9.13,.65],
  [9.13,10,1.9], [10,10,1.25]
-].map(([from,to,length])=>[from,to,length*(from===to?.3:.62)]);
+].filter(([from,to])=>from!==to).map(([from,to,length])=>[from,to,length*.72]);
 export const scrollScreens=pacing.reduce((sum,p)=>sum+p[2],0);
+const speeds=pacing.map(([from,to,length])=>(to-from)/length);
+const tangent=i=>i===0?speeds[0]:i===speeds.length?speeds.at(-1):2*speeds[i-1]*speeds[i]/(speeds[i-1]+speeds[i]);
 export function referenceAtProgress(progress){
  let cursor=Math.max(0,Math.min(1,progress))*scrollScreens;
- for(const [from,to,length] of pacing){
-  if(cursor<=length)return from+(to-from)*cursor/length;
+ for(let i=0;i<pacing.length;i++){
+  const [from,to,length]=pacing[i];
+  if(cursor<=length){const t=cursor/length,t2=t*t,t3=t2*t;return (2*t3-3*t2+1)*from+(t3-2*t2+t)*length*tangent(i)+(-2*t3+3*t2)*to+(t3-t2)*length*tangent(i+1);}
   cursor-=length;
  }
  return 10;
 }
 export function progressAtReference(time){
- let before=0;
- // Navigation lands in the middle of a reading hold where one exists.
- for(const [from,to,length] of pacing){
-  if(from===to&&Math.abs(from-time)<.12)return (before+length*.5)/scrollScreens;
-  before+=length;
- }
- before=0;
- for(const [from,to,length] of pacing){
-  if(time>=from&&time<=to&&to>from)return (before+length*(time-from)/(to-from))/scrollScreens;
-  before+=length;
- }
- return time<=0?0:1;
+ if(time<=0)return 0;if(time>=10)return 1;
+ let low=0,high=1;for(let i=0;i<36;i++){const mid=(low+high)/2;if(referenceAtProgress(mid)<time)low=mid;else high=mid;}return (low+high)/2;
 }
