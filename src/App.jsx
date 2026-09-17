@@ -56,21 +56,31 @@ export default function App() {
     };
   }, []);
 
-  // Programmatically trigger video play with muted autoplay policy compliance
+  // Programmatically trigger video play from frame 0 (0%) with muted autoplay policy compliance
   useEffect(() => {
     const v = videoRef.current;
     if (v) {
       v.muted = true;
       v.defaultMuted = true;
       v.playsInline = true;
+      try {
+        v.currentTime = 0;
+      } catch {}
+
       const playPromise = v.play();
       if (playPromise !== undefined) {
         playPromise.catch(() => {
-          // Fallback if autoplay is blocked
           setVideoFinished(true);
         });
       }
     }
+
+    // Safety fallback: ensure loading screen finishes within 8 seconds maximum
+    const timer = setTimeout(() => {
+      setVideoFinished(true);
+    }, 8000);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const handleVideoEnded = () => {
@@ -103,6 +113,11 @@ export default function App() {
             autoPlay
             muted
             playsInline
+            onLoadedMetadata={(e) => {
+              try {
+                e.target.currentTime = 0;
+              } catch {}
+            }}
             onEnded={handleVideoEnded}
           />
           {failed && (
